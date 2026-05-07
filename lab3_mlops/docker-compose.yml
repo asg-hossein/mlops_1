@@ -1,0 +1,7 @@
+services:
+  sentiment-api:
+    build: .
+    container_name: lms-sentiment-container
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
