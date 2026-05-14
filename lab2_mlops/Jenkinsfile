@@ -32,7 +32,7 @@ pipeline {
                     $VENV/bin/python -m ensurepip --upgrade || true
                     $VENV/bin/python -m pip install --upgrade pip
 
-                    $VENV/bin/pip install -r req.txt
+                    $VENV/bin/pip install -r ../lab2_mlops/req.txt
                     '''
                 }
             }
