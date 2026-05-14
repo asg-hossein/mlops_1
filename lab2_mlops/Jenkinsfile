@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         VENV = ".venv"
+        PROJECT_DIR = "lab1_mlops"
+
         GITHUB_REPO = 'mlops_1'
         GITHUB_ACCOUNT = 'nikitasasniy'
     }
@@ -21,61 +23,70 @@ pipeline {
 
         stage('Setup Environment') {
             steps {
-                sh '''
-                set -e
+                dir("${env.PROJECT_DIR}") {
+                    sh '''
+                    set -e
 
-                VENV=".venv"
+                    python3 -m venv $VENV
 
-                python3 -m venv $VENV
+                    $VENV/bin/python -m ensurepip --upgrade || true
+                    $VENV/bin/python -m pip install --upgrade pip
 
-                $VENV/bin/python -m ensurepip --upgrade || true
-                $VENV/bin/python -m pip install --upgrade pip
-
-                $VENV/bin/pip install -r req.txt
-                '''
+                    $VENV/bin/pip install -r req.txt
+                    '''
+                }
             }
         }
 
         stage('Data Creation') {
             steps {
-                sh '''
-                set -e
-                .venv/bin/python data_creation.py
-                '''
+                dir("${env.PROJECT_DIR}") {
+                    sh '''
+                    set -e
+                    $VENV/bin/python data_creation.py
+                    '''
+                }
             }
         }
 
         stage('Data Preprocessing') {
             steps {
-                sh '''
-                set -e
-                .venv/bin/python data_preprocessing.py
-                '''
+                dir("${env.PROJECT_DIR}") {
+                    sh '''
+                    set -e
+                    $VENV/bin/python data_preprocessing.py
+                    '''
+                }
             }
         }
 
         stage('Model Preparation') {
             steps {
-                sh '''
-                set -e
-                .venv/bin/python model_preparation.py
-                '''
+                dir("${env.PROJECT_DIR}") {
+                    sh '''
+                    set -e
+                    $VENV/bin/python model_preparation.py
+                    '''
+                }
             }
         }
 
         stage('Model Testing') {
             steps {
-                script {
-                    def output = sh(
-                        script: '.venv/bin/python model_testing.py',
-                        returnStdout: true
-                    ).trim()
+                dir("${env.PROJECT_DIR}") {
+                    script {
+                        def output = sh(
+                            script: "$VENV/bin/python model_testing.py",
+                            returnStdout: true
+                        ).trim()
 
-                    echo output
-                    env.PIPELINE_LOG = output.take(4000)
+                        echo output
 
-                    def matcher = (output =~ /rmse=([0-9.]+)/)
-                    env.RMSE = matcher ? matcher[0][1] : "unknown"
+                        env.PIPELINE_LOG = output.take(4000)
+
+                        def matcher = (output =~ /rmse=([0-9.]+)/)
+                        env.RMSE = matcher ? matcher[0][1] : "unknown"
+                    }
                 }
             }
         }
@@ -83,17 +94,25 @@ pipeline {
         stage('Publish ML Pipeline Check') {
             steps {
                 script {
-                    def rmseValue = (env.RMSE.isNumber()) ? env.RMSE.toFloat() : null
+                    def rmseValue = null
+
+                    try {
+                        rmseValue = env.RMSE.toFloat()
+                    } catch(Exception e) {
+                        rmseValue = null
+                    }
+
                     def conclusion = 'SUCCESS'
 
-                    if (rmseValue == null || env.RMSE == "error") {
+                    if (rmseValue == null || env.RMSE == "unknown") {
                         conclusion = 'FAILURE'
                     } else if (rmseValue > 1.0) {
                         conclusion = 'UNSTABLE'
                     }
 
-                    publishChecks name: 'ML Pipeline',
-                        title: "ML Pipeline Results",
+                    publishChecks(
+                        name: 'ML Pipeline',
+                        title: 'ML Pipeline Results',
                         summary: "RMSE: ${env.RMSE}",
                         text: """
 Commit: ${env.GIT_COMMIT ?: 'unknown'}
@@ -105,6 +124,7 @@ ${env.PIPELINE_LOG}
 """,
                         detailsURL: env.BUILD_URL,
                         conclusion: conclusion
+                    )
                 }
             }
         }
@@ -112,11 +132,13 @@ ${env.PIPELINE_LOG}
 
     post {
         failure {
-            publishChecks name: 'ML Pipeline',
-                title: "ML Pipeline Failed",
-                summary: "Ошибка выполнения пайплайна",
+            publishChecks(
+                name: 'ML Pipeline',
+                title: 'ML Pipeline Failed',
+                summary: 'Ошибка выполнения пайплайна',
                 detailsURL: env.BUILD_URL,
                 conclusion: 'FAILURE'
+            )
         }
     }
 }
