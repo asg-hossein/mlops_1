@@ -5,3 +5,4 @@
 **запускаем pipeline.sh**
 test
 
+
