@@ -1,0 +1,17 @@
+# CSV files (data)
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+venv/
+env/
+
+# DVC
+.dvc/tmp/
+.dvc/cache/
+
+# IDE
+.vscode/
+.idea/
+.dvc/cache/
